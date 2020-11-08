@@ -4,19 +4,19 @@ from datetime import datetime
 
 from iex import iex_quote
 
-from utils import valid_arg_count, valid_symbol
+from utils import utils, stock
 
 def run():
     response = {}
 
-    if not valid_arg_count(2):
+    if not utils.valid_arg_count(2):
         response["error"] = "No Symbol"
         print(response)
         exit()
 
     symbol = sys.argv[1]
 
-    if not valid_symbol(symbol):
+    if not stock.valid_symbol(symbol):
         response["error"] = "Invalid Symbol"
         print(response)
         exit()
