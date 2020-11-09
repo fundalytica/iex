@@ -30,9 +30,8 @@ def run():
 
     # iex date format, January 1, 2020 (Month as locale’s full name, Day of the month, Year with century)
     iex_date_fmt = "%B %d, %Y"
-    # iex time format, January 1, 2020 (24 Hour, Minute, Second, am/pm)
-    # TODO Check why we use 24 hour AND am/pm
-    iex_time_fmt = "%H:%M:%S %p"
+    # iex time format, January 1, 2020 (12 Hour, Minute, Second, AM/PM)
+    iex_time_fmt = "%I:%M:%S %p"
 
     if isUSMarketOpen:
         # time only
@@ -40,9 +39,9 @@ def run():
             # raise exception if iex time does not match iex time format
             datetime.strptime(latestTime, iex_time_fmt)
 
-            # latestTime contains only time and no date, add current date and apply iex date format
-            # TODO Check if datetime.now() will match trading date
-            response["date"] = datetime.now().strftime(iex_date_fmt)
+            # latestTime contains only time and no date, get date from latestUpdate epoch timestamp
+            latestUpdate = int(iex_response["latestUpdate"] / 1000)
+            response["date"] = datetime.fromtimestamp(latestUpdate).strftime(iex_date_fmt)
             response["time"] = latestTime
         except ValueError as error:
             print(error)
