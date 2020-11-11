@@ -1,27 +1,25 @@
-import sys
+import argparse
 
 from datetime import datetime
 
 from iex import iex_quote
 
-from utils import utils, stock
+from utils import stock
 
 def run():
     response = {}
 
-    if not utils.valid_arg_count(2):
-        response["error"] = "No Symbol"
-        print(response)
-        exit()
+    argparser = argparse.ArgumentParser(description='IEX Stock Quote')
+    argparser.add_argument("-s", "--symbol", help="stock symbol", required=True)
+    argparser.add_argument("--sandbox", action='store_true', help="sanbox mode")
+    args = argparser.parse_args()
 
-    symbol = sys.argv[1]
-
-    if not stock.valid_symbol(symbol):
+    if not stock.valid_symbol(args.symbol):
         response["error"] = "Invalid Symbol"
         print(response)
         exit()
 
-    iex_response = iex_quote(symbol)
+    iex_response = iex_quote(args.symbol, args.sandbox)
 
     # check if the market is open
     isUSMarketOpen = (iex_response["isUSMarketOpen"] == True)
@@ -61,7 +59,7 @@ def run():
             exit()
 
     # create and print response object, include message cost
-    response["symbol"] = symbol
+    response["symbol"] = args.symbol
     response["price"] = iex_response["latestPrice"]
     response["change"] = iex_response["changePercent"]
     response["market"] = "open" if isUSMarketOpen else "closed"
