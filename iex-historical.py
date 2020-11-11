@@ -1,4 +1,5 @@
 import sys
+import argparse
 
 import os
 import pathlib
@@ -137,8 +138,10 @@ class Integrity:
         while drops > 0:
             random = np.random.randint(0, len(df.index))
             index = df.index[random]
-            close = df.loc[index]['close']
-            color_print(f'- {index} {close}', Fore.RED)
+
+            # close = df.loc[index]['close']
+            # color_print(f'- {index} {close}', Fore.RED)
+
             df.drop(index=index, inplace=True)
             drops -= 1
 
@@ -254,19 +257,17 @@ class Integrity:
         return df
 
 def run():
-    if not utils.valid_arg_count(2):
-        color_print('Usage: python3 historical.py <SYMBOL>', Fore.RED)
-        exit()
+    argparser = argparse.ArgumentParser(description='IEX Historical Market Data')
+    argparser.add_argument("-s", "--symbol", help="stock symbol", required=True)
+    argparser.add_argument("--sandbox", action='store_true', help="sanbox mode")
+    args = argparser.parse_args()
 
-    symbol = sys.argv[1]
-
-    if not stock.valid_symbol(symbol):
+    if not stock.valid_symbol(args.symbol):
         color_print(f'{symbol} is not a valid stock symbol', Fore.RED)
         exit()
 
-    sandbox = True
-    local = Local(symbol, sandbox)
-    remote = Remote(symbol, sandbox)
+    local = Local(args.symbol, args.sandbox)
+    remote = Remote(args.symbol, args.sandbox)
 
     df = local.read()
 
