@@ -7,7 +7,7 @@ import pathlib
 import requests
 import json
 
-from utils import stock
+from utils import utils, stock
 
 import numpy as np
 import pandas as pd
@@ -32,7 +32,7 @@ class Local:
         self.path += symbol
         self.path = f'{self.path}.{"csv" if csv else "pkl"}'
 
-        color_print(f'\n[ Symbol: {symbol}, Path: {self.path} ]', Fore.GREEN)
+        color_print(f'\n[ Local - Symbol: {symbol}, Path: {self.path} ]', Fore.GREEN)
 
     def read(self):
         color_print('\n[ Read Historical Data ]', Fore.CYAN)
@@ -65,7 +65,7 @@ class Remote:
         self.symbol = symbol
         self.subdomain = 'sandbox' if sandbox else 'cloud'
         self.token = iex_token(sandbox)
-        color_print(f'\n[ Symbol: {symbol}, Sandbox: {sandbox}, Token: {self.token} ]', Fore.GREEN)            
+        color_print(f'\n[ Remote - Symbol: {symbol}, Sandbox: {sandbox}, Token: {self.token} ]', Fore.GREEN)            
 
     def range(self, range):
         color_print(f'\n[ Fetch Historical Data (Adjusted Close) ]', Fore.CYAN)
@@ -247,25 +247,19 @@ def run():
 
     local = Local(args.symbol, args.sandbox)
     remote = Remote(args.symbol, args.sandbox)
-
+    
     df = local.read()
 
-    # existing local data
-    if(df is not None):
-        integrity = Integrity(remote)
-
-        # fill missing dates
-        insertions = integrity.fill(df)
-
-        if(duplicates > 0 or insertions > 0):
-            local.write(df)
-    # no existing local data
-    else:
-        # get max days from API
+    if df is None:
         df = remote.range('max')
 
-        if(df is not None):
+        if df is not None:
             local.write(df)
+    #else:
+    #    integrity = Integrity(remote)
+    #    insertions = integrity.fill(df)
+    #    if(insertions > 0):
+    #        local.write(df)
 
     color_print('\n- - - - -', Fore.GREEN)
 
