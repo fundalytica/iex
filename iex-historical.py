@@ -11,7 +11,6 @@ from utils import utils, stock
 
 import numpy as np
 import pandas as pd
-from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday, nearest_workday, USMartinLutherKingJr, USPresidentsDay, USMemorialDay, USLaborDay, USThanksgivingDay, GoodFriday
 
 from colorama import Fore, Style
 
@@ -206,20 +205,8 @@ class Integrity:
         # remove rows that are weekends
         df = df.loc[pd.to_datetime(df.index).dayofweek.isin([0,1,2,3,4])]
 
-        # make US trading calendar
-        class USTradingCalendar(AbstractHolidayCalendar):
-            rules = [
-                Holiday('NewYearsDay', month=1, day=1, observance=nearest_workday),
-                Holiday('USIndependenceDay', month=7, day=4, observance=nearest_workday),
-                Holiday('Christmas', month=12, day=25, observance=nearest_workday),
-                USMartinLutherKingJr,
-                USPresidentsDay,
-                GoodFriday,
-                USMemorialDay,
-                USLaborDay,
-                USThanksgivingDay
-            ]
-        cal = USTradingCalendar().holidays(start, end)
+        # get US trading calendar
+        cal = stock.USTradingCalendar().holidays(start, end)
 
         # remove rows that are non trading days because of holidays
         df = df.loc[~df.index.isin(cal)]
