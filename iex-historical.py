@@ -7,7 +7,7 @@ import pathlib
 import requests
 import json
 
-from utils import utils, stock
+from utils import stock
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,7 @@ from iex import iex_token
 def color_print(text, color):
     print(f'{color}{text}{Style.RESET_ALL}')
 
+# class to handle local data
 class Local:
     def __init__(self, symbol, sandbox, csv=True):
         self.csv = csv
@@ -131,28 +132,6 @@ class Remote:
 class Integrity:
     def __init__(self, remote):
         self.remote = remote
-
-    def random_removals(self, df, drops):
-        color_print('\n[ Random Drops ]\n', Fore.CYAN)
-
-        while drops > 0:
-            random = np.random.randint(0, len(df.index))
-            index = df.index[random]
-
-            # close = df.loc[index]['close']
-            # color_print(f'- {index} {close}', Fore.RED)
-
-            df.drop(index=index, inplace=True)
-            drops -= 1
-
-    def remove_duplicates(self, df):
-        # debug, keeps both
-        # duplicated = pd.Index(df.index).duplicated(keep=False)
-
-        first = df[pd.Index(df.index).duplicated(keep='first')]
-        df = df.append(first).drop_duplicates(keep=False)
-
-        return {'count':len(first.index),'df':df}
 
     def fill(self, df):
         insertions = 0
@@ -274,15 +253,6 @@ def run():
     # existing local data
     if(df is not None):
         integrity = Integrity(remote)
-
-        # integrity.random_removals(df, 5)
-
-        # remove duplicate entries
-        result = integrity.remove_duplicates(df)
-        duplicates = result['count']
-        if duplicates:
-            color_print(f'\nDuplicates Dropped: {duplicates}', Fore.RED)
-            df = result['df']
 
         # fill missing dates
         insertions = integrity.fill(df)
