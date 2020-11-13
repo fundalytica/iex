@@ -73,12 +73,12 @@ class Integrity:
         self.local = local
         self.remote = remote
 
-    def missing(self, historical_data_df):
+    def missing_dates(self, df):
         color_print(f'\n[ Integrity: Missing Dates ]', Fore.GREEN)
 
         # start and end dates in historical data frame
-        start = pd.to_datetime(historical_data_df.index[0])
-        end = pd.to_datetime(historical_data_df.index[-1])
+        start = pd.to_datetime(df.index[0])
+        end = pd.to_datetime(df.index[-1])
         days = (end - start).days + 1
         years = days / 365
         format = '%b %d, %Y'
@@ -89,7 +89,7 @@ class Integrity:
         all_dates_df = range.to_frame(index=False, name='date')
 
         # all dates df join with historical df
-        all_dates_df = all_dates_df.set_index('date').join(historical_data_df)
+        all_dates_df = all_dates_df.set_index('date').join(df)
 
         # keep only rows with close value of NaN
         missing_dates_df = all_dates_df.loc[pd.isna(all_dates_df.close)]
@@ -113,6 +113,7 @@ class Integrity:
             return missing_dates_df
 
     def update(self, df):
+    def additional_dates(self, df):
         insertions = 0
 
         color_print('\n[ Integrity: Historical Data Update ]', Fore.GREEN)
