@@ -112,11 +112,11 @@ class Integrity:
             print(f'\n{missing_dates_df}')
             return missing_dates_df
 
-    def update(self, df):
+    # TODO: refactor, return only dates
     def additional_dates(self, df):
         insertions = 0
 
-        color_print('\n[ Integrity: Historical Data Update ]', Fore.GREEN)
+        color_print(f'\n[ Integrity: Additional, Dates ]', Fore.GREEN)
 
         # further date range
         end = pd.to_datetime(df.index[-1])
@@ -142,19 +142,17 @@ class Integrity:
 
         for date in dates:
             close = self.remote.fetch_date(date)
-
             if close is not None:
                 index = date.strftime('%Y-%m-%d')
                 df.loc[index] = close
                 insertions += 1
-                color_print(f'\nAppend Row To Data Frame', Fore.GREEN)
-                print(f'{index} {close}')
-
-        df = df.sort_index(inplace=True)
+                color_print(f'\n[ Integrity: Insertion ]', Fore.GREEN)
+                color_print(f'> {index} {close}', Fore.MAGENTA)
                 # save on every date because of messages used
                 self.local.write(df)
 
-        return insertions
+        color_print(f'\n[ Integrity: Insert Complete ]', Fore.GREEN)
+        color_print(f'> {insertions} Insertions', Fore.MAGENTA)
 
 class Remote:
     def __init__(self, symbol, sandbox):
@@ -185,6 +183,7 @@ class Remote:
         url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/{range}?token={self.token}&chartCloseOnly=true'
         color_print(f'> {url}', Fore.CYAN)
 
+        # TODO: repeats
         response = requests.get(url)
         if(response.status_code != requests.codes.ok):
             color_print(response.status_code, Fore.RED)
@@ -213,6 +212,7 @@ class Remote:
         url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/date/{date_str}?token={self.token}&chartByDay=true'
         color_print(f'> {url}', Fore.CYAN)
 
+        # TODO repeats
         response = requests.get(url)
         if(response.status_code != requests.codes.ok):
             color_print(response.status_code, Fore.RED)
@@ -230,7 +230,6 @@ class Remote:
             close = df.loc[0]['close']
             color_print(f'> Close: {close}', Fore.MAGENTA)
             return close
-
 
 def run():
     argparser = argparse.ArgumentParser(description='IEX Historical Market Data')
@@ -251,21 +250,25 @@ def run():
         if df is not None:
             local.write(df)
     else:
-        integrity = Integrity(remote)
-        
-        missing = integrity.missing(df)
+        integrity = Integrity(local, remote)
+
+        missing = integrity.missing_dates(df)
         if missing is not None:
             # request confirmation
-            confirm = utils.confirm('> Fetch missing days data?')
+            confirm = utils.confirm(f'> Insert {missing.shape[0]:,} missing entries?')
             if not confirm:
                 return
-            # integrity.add(missing.index, df)
-            # local.write(df)
+            # add missing dates
+            integrity.insert(missing.index, df)
 
-    # insertions = integrity.fill(df)
-    #    if(insertions > 0):
-    #        local.write(df)
+        # TODO: update prices after last date in df
+        # additional_dates
 
     print('')
 
 run()
+
+# TODO: on additions, get the last df date, make a request to see if it is valid then there are no splits or dividends
+# call the method: valid, Integrity: Valid (no splits or dividends since . . .)
+
+# TODO: schedule updates
