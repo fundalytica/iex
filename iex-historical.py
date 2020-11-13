@@ -42,6 +42,9 @@ class Local:
             else:
                 df = pd.read_pickle(self.path)
 
+            # sort on load
+            df.sort_index(inplace=True)
+
             print(f'\n{df}')
         except IOError as e:
             color_print('> File Not Found', Fore.RED)
@@ -54,6 +57,9 @@ class Local:
 
     def write(self, df):
         color_print('\n[ Local: Write Historical Data ]', Fore.GREEN)
+
+        # sort on save
+        df.sort_index(inplace=True)
 
         if(self.csv):
             df.to_csv(self.path)
