@@ -137,7 +137,7 @@ class Integrity:
 
         return insertions
 
-    def add(self, dates, df):
+    def insert(self, dates, df):
         insertions = 0
 
         for date in dates:
