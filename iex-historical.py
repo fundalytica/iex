@@ -69,7 +69,8 @@ class Local:
         color_print('> OK', Fore.MAGENTA)
 
 class Integrity:
-    def __init__(self, remote):
+    def __init__(self, local, remote):
+        self.local = local
         self.remote = remote
 
     def missing(self, historical_data_df):
@@ -149,6 +150,8 @@ class Integrity:
                 print(f'{index} {close}')
 
         df = df.sort_index(inplace=True)
+                # save on every date because of messages used
+                self.local.write(df)
 
         return insertions
 
