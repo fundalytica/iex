@@ -20,3 +20,23 @@ def iex_quote(symbol, sandbox=False):
     data = json.loads(response.text)
     data['iexcloud-messages-used'] = response.headers['iexcloud-messages-used']
     return data
+
+def iex_ranges():
+    return ['max','5y','2y','1y','6m','3m','1m','5d']
+
+def iex_trading_days(iex_range):
+    annual_holidays = 9
+    annual_trading_days = 52 * 5 - annual_holidays
+
+    days = {
+        'max':  annual_trading_days * 15,
+        '5y':   annual_trading_days * 5,
+        '2y':   annual_trading_days * 2,
+        '1y':   annual_trading_days,
+        '6m':   annual_trading_days / 2,
+        '3m':   annual_trading_days / 4,
+        '1m':   annual_trading_days / 12,
+        '5d':   5
+    }
+
+    return days[iex_range]
