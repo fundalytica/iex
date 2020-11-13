@@ -7,19 +7,18 @@ import pathlib
 import requests
 import json
 
-from utils import utils, stock
-
 import numpy as np
 import pandas as pd
 
 from colorama import Fore, Style
 
-from iex import iex_token
+from utils import utils, stock
+
+from iex import iex_token, iex_ranges, iex_trading_days
 
 def color_print(text, color):
     print(f'{color}{text}{Style.RESET_ALL}')
 
-# class to handle local data
 class Local:
     def __init__(self, symbol, sandbox, csv=True):
         self.csv = csv
@@ -31,10 +30,11 @@ class Local:
         self.path += symbol
         self.path = f'{self.path}.{"csv" if csv else "pkl"}'
 
-        color_print(f'\n[ Local - Symbol: {symbol}, Path: {self.path} ]', Fore.GREEN)
+        color_print(f'\n[ Local: Init ]', Fore.GREEN)
+        color_print(f'> Symbol: {symbol}, Path: {self.path}', Fore.CYAN)
 
     def read(self):
-        color_print('\n[ Read Historical Data ]', Fore.CYAN)
+        color_print('\n[ Local: Read Historical Data ]', Fore.GREEN)
 
         try:
             if(self.csv):
@@ -44,103 +44,71 @@ class Local:
 
             print(f'\n{df}')
         except IOError as e:
-            color_print('x', Fore.RED)
+            color_print('> File Not Found', Fore.RED)
+            return None
+        except pd.errors.EmptyDataError as e:
+            color_print('> Empty Data', Fore.RED)
             return None
 
         return df
 
     def write(self, df):
-        color_print('\n[ Write Historical Data ]', Fore.CYAN)
+        color_print('\n[ Local: Write Historical Data ]', Fore.GREEN)
 
         if(self.csv):
             df.to_csv(self.path)
         else:
             df.to_pickle(self.path)
-
-        color_print('✓', Fore.GREEN)
-
-class Remote:
-    def __init__(self, symbol, sandbox):
-        self.symbol = symbol
-        self.subdomain = 'sandbox' if sandbox else 'cloud'
-        self.token = iex_token(sandbox)
-        color_print(f'\n[ Remote - Symbol: {symbol}, Sandbox: {sandbox}, Token: {self.token} ]', Fore.GREEN)            
-
-    def range(self, range):
-        color_print(f'\n[ Fetch Historical Data (Adjusted Close) ]', Fore.CYAN)
-
-        weight = 2
-        # valid ranges: max (up to 15y), 5y, 2y, 1y, 6m, 3m, 1m, 5d, ytd
-        # access to Historical Prices from more than 5 years ago is only included with paid subscriptions
-        messages = { 'max': 15 * 365, '5y': 5 * 365, '2y': 2 * 365, '1y': 1 * 365, '6m': 6 * 30, '3m': 3 * 30, '1m': 30, '5d': 5}
-
-        if(range not in messages):
-            color_print(f'Invalid Range, {range}', Fore.RED)
-            return
-
-        color_print(f'Range {range}, Weight {weight}, Messages {messages[range] * weight}', Fore.YELLOW)
-
-        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/{range}?token={self.token}&chartCloseOnly=true'
-        color_print(f'{url}', Fore.CYAN)
-
-        response = requests.get(url)
-        if(response.status_code != requests.codes.ok):
-            color_print(response.status_code, Fore.RED)
-            color_print(response.text, Fore.RED)
-            return
-
-        data = json.loads(response.text)
-        df = pd.json_normalize(data)
-
-        df = df.drop(columns=['volume', 'change', 'changePercent', 'changeOverTime'])
-        df = df.set_index('date')
-
-        if(not df.empty):
-            color_print('\nHistorical Data', Fore.YELLOW)
-            print(df)
-            return df
-
-    def date(self, date):
-        color_print(f'\n[ Fetch Historical Data Day (Adjusted Close) ]', Fore.CYAN)
-
-        weight = 2
-        messages = weight
-
-        date_str = date.strftime('%Y%m%d')
-        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/date/{date_str}?token={self.token}&chartByDay=true'
-        color_print(f'{url}', Fore.CYAN)
-
-        response = requests.get(url)
-        if(response.status_code != requests.codes.ok):
-            color_print(response.status_code, Fore.RED)
-            color_print(response.text, Fore.RED)
-            return
-
-        data = json.loads(response.text)
-        df = pd.json_normalize(data)
-
-        if df.empty:
-            color_print(f'\nDate {date_str}', Fore.YELLOW)
-            print('None')
-        else:
-            color_print(f'\nDate {date_str}, Weight {weight}, Messages {messages}', Fore.YELLOW)
-            close = df.loc[0]['close']
-            print(f'Close: {close}')
-            return close
+        
+        color_print('> OK', Fore.MAGENTA)
 
 class Integrity:
     def __init__(self, remote):
         self.remote = remote
 
-    def fill(self, df):
+    def missing(self, historical_data_df):
+        color_print(f'\n[ Integrity: Missing Dates ]', Fore.GREEN)
+
+        # start and end dates in historical data frame
+        start = pd.to_datetime(historical_data_df.index[0])
+        end = pd.to_datetime(historical_data_df.index[-1])
+        days = (end - start).days + 1
+        years = days / 365
+        format = '%b %d, %Y'
+        color_print(f'> {start.strftime(format)} to {end.strftime(format)}, {days:,} days = {years:.1f} years', Fore.CYAN)
+
+        # all dates data frame (start to end)
+        range = pd.date_range(start=start, end=end)
+        all_dates_df = range.to_frame(index=False, name='date')
+
+        # all dates df join with historical df
+        all_dates_df = all_dates_df.set_index('date').join(historical_data_df)
+
+        # keep only rows with close value of NaN
+        missing_dates_df = all_dates_df.loc[pd.isna(all_dates_df.close)]
+
+        # remove weekends
+        missing_dates_df = missing_dates_df.loc[pd.to_datetime(missing_dates_df.index).dayofweek.isin([0,1,2,3,4])]
+
+        # US trading calendar
+        cal = stock.USTradingCalendar().holidays(start, end)
+        # remove holidays
+        missing_dates_df = missing_dates_df.loc[~missing_dates_df.index.isin(cal)]
+        # remove non trading days
+        missing_dates_df = missing_dates_df.loc[~missing_dates_df.index.isin(stock.USOtherNonTradingDates())]
+
+        if(missing_dates_df.empty):
+            color_print(f'> No Missing Dates', Fore.MAGENTA)
+            return
+        else:
+            color_print(f'> Missing Dates', Fore.MAGENTA)
+            print(f'\n{missing_dates_df}')
+            return missing_dates_df
+
+    def update(self, df):
         insertions = 0
 
-        color_print('\n[ Historical Data Fill ]', Fore.CYAN)
-
-        # request missing days
-        missing = self.missing(df)
-        if len(missing.index) > 0:
-            insertions += self.add(missing.index, df)
+        color_print('\n[ Integrity: Historical Data Update ]', Fore.GREEN)
 
         # further date range
         end = pd.to_datetime(df.index[-1])
@@ -165,7 +133,7 @@ class Integrity:
         insertions = 0
 
         for date in dates:
-            close = self.remote.date(date)
+            close = self.remote.fetch_date(date)
 
             if close is not None:
                 index = date.strftime('%Y-%m-%d')
@@ -178,49 +146,80 @@ class Integrity:
 
         return insertions
 
-    def missing(self, historical_data_df):
-        # date range
-        start = pd.to_datetime(historical_data_df.index[0])
-        end = pd.to_datetime(historical_data_df.index[-1])
-        days = (end - start).days + 1
-        years = days / 365
-        dtf = '%b %d, %Y'
-        color_print(f'\nDate Range (Inclusive)', Fore.YELLOW)
-        print(f'({start.strftime(dtf)}) to ({end.strftime(dtf)}), {days} days = {round(years,2)} years')
+class Remote:
+    def __init__(self, symbol, sandbox):
+        self.symbol = symbol
+        self.subdomain = 'sandbox' if sandbox else 'cloud'
+        self.token = iex_token(sandbox)
+        self.weight = 2
+        color_print(f'\n[ Remote: Init ]', Fore.GREEN)
+        color_print(f'> Symbol: {symbol}, Sandbox: {sandbox}, Token: {self.token}', Fore.CYAN)
 
-        # all dates range data frame
-        dr = pd.date_range(start=start, end=end)
-        df = dr.to_frame(index=False, name='date')
+    def fetch_range(self, range):
+        color_print(f'\n[ Remote: Fetch Historical Data - Range - Adjusted Close ]', Fore.GREEN)
 
-        # joined data frame, all dates join historical dates on date
-        df = df.set_index('date').join(historical_data_df)
+        if(range not in iex_ranges()):
+            color_print(f'Invalid Range, {range}', Fore.RED)
+            return
 
-        # keep only rows with close value of NaN
-        df = df.loc[pd.isna(df.close)]
+        days = iex_trading_days(range)
+        cost = days * self.weight
+        color_print(f'> Range {range}, Days {days:,}, Weight {self.weight}, Message Cost ~{cost:,}', Fore.CYAN)
 
-        # add dayofweek column for debugging
-        # df = df.assign(day=pd.to_datetime(df.index).dayofweek)
-        # print(df)
+        # request confirmation
+        confirm = utils.confirm('> Proceed with IEX request?')
+        if not confirm:
+            return
+        
+        # access to Historical Prices from more than 5 years ago is only included with paid subscriptions
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/{range}?token={self.token}&chartCloseOnly=true'
+        color_print(f'> {url}', Fore.CYAN)
 
-        # remove rows that are weekends
-        df = df.loc[pd.to_datetime(df.index).dayofweek.isin([0,1,2,3,4])]
+        response = requests.get(url)
+        if(response.status_code != requests.codes.ok):
+            color_print(response.status_code, Fore.RED)
+            color_print(response.text, Fore.RED)
+            return
+        messages = int(response.headers["iexcloud-messages-used"])
+        color_print(f'> Messages Used {messages:,}, Days {int(messages/self.weight):,}', Fore.MAGENTA)
+        data = json.loads(response.text)
+        df = pd.json_normalize(data)
+        
+        df = df.drop(columns=['volume', 'change', 'changePercent', 'changeOverTime'])
+        df = df.set_index('date')
 
-        # get US trading calendar
-        cal = stock.USTradingCalendar().holidays(start, end)
+        if not df.empty:
+            print(df)
+            return df
 
-        # remove rows that are non trading days because of holidays
-        df = df.loc[~df.index.isin(cal)]
-        # US Markets Closed December 5, 2018: National Day of Mourning for George H.W. Bush
-        df = df[df.index != '2018-12-05']
+    def fetch_date(self, date):
+        color_print(f'\n[ Remote: Fetch Historical Data - Day - Adjusted Close ]', Fore.GREEN)
 
-        if(df.empty):
-            color_print(f'\nNo Missing Dates ✓', Fore.GREEN)
+        cost = self.weight
+        color_print(f'> Date {date_str}, Weight {self.weight}, Message Cost {cost}', Fore.CYAN)
+
+        date_str = date.strftime('%Y%m%d')
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/date/{date_str}?token={self.token}&chartByDay=true'
+        color_print(f'> {url}', Fore.CYAN)
+
+        response = requests.get(url)
+        if(response.status_code != requests.codes.ok):
+            color_print(response.status_code, Fore.RED)
+            color_print(response.text, Fore.RED)
+            return
+        messages = int(response.headers["iexcloud-messages-used"])
+        color_print(f'> Messages Used {messages:,}, Days {int(messages/self.weight):,}', Fore.MAGENTA)
+        data = json.loads(response.text)
+        df = pd.json_normalize(data)
+
+        if df.empty:
+            color_print(f'> Date {date_str}', Fore.CYAN)
+            color_print(f'> None', Fore.MAGENTA)
         else:
-            print(f'\n{df}')
-            print(df.shape)
-            color_print(f'\nMissing Dates 𝗑', Fore.RED)
+            close = df.loc[0]['close']
+            color_print(f'> Close: {close}', Fore.MAGENTA)
+            return close
 
-        return df
 
 def run():
     argparser = argparse.ArgumentParser(description='IEX Historical Market Data')
@@ -234,28 +233,28 @@ def run():
 
     local = Local(args.symbol, args.sandbox)
     remote = Remote(args.symbol, args.sandbox)
-    
+
     df = local.read()
-
     if df is None:
-        df = remote.range('max')
-
+        df = remote.fetch_range('max')
         if df is not None:
             local.write(df)
-    #else:
-    #    integrity = Integrity(remote)
-    #    insertions = integrity.fill(df)
+    else:
+        integrity = Integrity(remote)
+        
+        missing = integrity.missing(df)
+        if missing is not None:
+            # request confirmation
+            confirm = utils.confirm('> Fetch missing days data?')
+            if not confirm:
+                return
+            # integrity.add(missing.index, df)
+            # local.write(df)
+
+    # insertions = integrity.fill(df)
     #    if(insertions > 0):
     #        local.write(df)
 
-    color_print('\n- - - - -', Fore.GREEN)
+    print('')
 
 run()
-
-# https://iexcloud.io/docs/api/#historical-prices
-
-# Range max = All available data up to 15 years
-# Adjusted close only
-# 2 per symbol per time interval returned (Excluding 1d)
-# use chartCloseOnly param
-# Example: If you query for SPY 5 day, it will return 5 days of prices for SPY for a total of 10
