@@ -203,11 +203,12 @@ class Remote:
 
     def fetch_date(self, date):
         color_print(f'\n[ Remote: Fetch Historical Data - Day - Adjusted Close ]', Fore.GREEN)
+        
+        date_str = date.strftime('%Y%m%d')
 
         cost = self.weight
         color_print(f'> Date {date_str}, Weight {self.weight}, Message Cost {cost}', Fore.CYAN)
 
-        date_str = date.strftime('%Y%m%d')
         url = f'https://{self.subdomain}.iexapis.com/v1/stock/{self.symbol}/chart/date/{date_str}?token={self.token}&chartByDay=true'
         color_print(f'> {url}', Fore.CYAN)
 
