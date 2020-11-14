@@ -111,30 +111,20 @@ class Integrity:
             print(f'\n{missing_dates_df}')
             return missing_dates_df
 
-    # TODO: refactor, return only dates
     def additional_dates(self, df):
-        insertions = 0
+        utils.cprint(f'\n[ Integrity: Additional Dates ]', Fore.GREEN)
 
-        utils.cprint(f'\n[ Integrity: Additional, Dates ]', Fore.GREEN)
+        today = pd.to_datetime('today')
 
-        # further date range
         end = pd.to_datetime(df.index[-1])
         next = end + pd.offsets.Day(1)
-        today = pd.to_datetime('today')
-        # request further days
-        further = (today - next).days + 1
-        if further > 0:
-            utils.cprint(f'\nDate Range To Date (Inclusive)', Fore.YELLOW)
-            dtf = '%b %d, %Y'
-            print(f'({next.strftime(dtf)}) to ({today.strftime(dtf)}), {further} days')
-            dr = pd.date_range(start=next, end=today)
-            insertions += self.add(dr, df)
 
-        if(insertions > 0):
-            print(f'\n{df}')
-            utils.cprint(f'\n{insertions} Insertions', Fore.GREEN)
-
-        return insertions
+        # further days
+        days = (today - next).days + 1
+        if days > 0:
+            format = '%b %d, %Y'
+            utils.cprint(f'> {next.strftime(format)} to {today.strftime(format)}, {days:,} days', Fore.CYAN)
+            return pd.date_range(start=next, end=today)
 
     def insert(self, dates, df):
         # request confirmation
