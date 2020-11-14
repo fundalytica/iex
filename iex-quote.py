@@ -2,7 +2,7 @@ import argparse
 
 from datetime import datetime
 
-from iex import iex_quote
+from iex import IEX
 
 from utils import stock
 
@@ -19,7 +19,8 @@ def run():
         print(response)
         exit()
 
-    iex_response = iex_quote(args.symbol, args.sandbox)
+    iex = IEX(args.sandbox)
+    iex_response = iex.request_quote(args.symbol)
 
     # check if the market is open
     isUSMarketOpen = (iex_response["isUSMarketOpen"] == True)
