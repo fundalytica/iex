@@ -67,8 +67,10 @@ class Local:
 
 class Integrity:
     def __init__(self, local, remote):
+    def __init__(self, local, remote, confirm):
         self.local = local
         self.remote = remote
+        self.confirm = confirm
 
     def missing_dates(self, df):
         utils.cprint(f'\n[ Integrity: Missing Dates ]', Fore.GREEN)
@@ -135,6 +137,11 @@ class Integrity:
         return insertions
 
     def insert(self, dates, df):
+        # request confirmation
+        if self.confirm:
+            if not utils.confirm(f'> Insert {dates.shape[0]:,} entries?'):
+                return
+
         insertions = 0
 
         for date in dates:
@@ -192,6 +199,7 @@ def run():
     argparser = argparse.ArgumentParser(description='IEX Historical Market Data')
     argparser.add_argument("-s", "--symbol", help="stock symbol", required=True)
     argparser.add_argument("--sandbox", action='store_true', help="sanbox mode")
+    argparser.add_argument("--confirm", action='store_true', help="confirm mode")
     args = argparser.parse_args()
 
     if not stock.valid_symbol(args.symbol):
@@ -199,7 +207,7 @@ def run():
         exit()
 
     local = Local(args.symbol, args.sandbox)
-    remote = Remote(args.symbol, args.sandbox)
+    remote = Remote(args.symbol, args.sandbox, args.confirm)
 
     df = local.read()
     if df is None:
@@ -207,7 +215,7 @@ def run():
         if df is not None:
             local.write(df)
     else:
-        integrity = Integrity(local, remote)
+        integrity = Integrity(local, remote, args.confirm)
 
         missing = integrity.missing_dates(df)
         if missing is not None:
