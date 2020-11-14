@@ -226,8 +226,17 @@ def run():
 
     print('')
 
+def test():
+    iex = IEX(sandbox=False, confirm=False, verbose=True)
+    print(pd.json_normalize(iex.request_historical_date('SPY', '20170201')))
+    print(pd.json_normalize(iex.request_historical_date('TSLA', '20200303')))
 
 # TODO set max to 5y do not pay for anything
+try:
+    run()
+    # test()
+except KeyboardInterrupt:
+    print('\n')
 
 # TODO fetch close if you can fetch dividends and splits, that would help skip the validity check
 
