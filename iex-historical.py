@@ -231,20 +231,17 @@ def test():
     print(pd.json_normalize(iex.request_historical_date('SPY', '20170201')))
     print(pd.json_normalize(iex.request_historical_date('TSLA', '20200303')))
 
-# TODO set max to 5y do not pay for anything
 try:
     run()
     # test()
 except KeyboardInterrupt:
     print('\n')
 
-# TODO fetch close if you can fetch dividends and splits, that would help skip the validity check
+# TODO YOU NEED TO GET THE DIVIDENDS (Basic), 5Y
+# TODO YOU NEED TO GET THE SPLITS (Basic), 5Y
 
-# TODO add backwards data as well as forward data
+# TODO COMPARE TO YAHOO
 
-# TODO rely more on yfinance since it is free and has a library
+# TODO CRONTAB SCHEDULE SPY, QQQ, AAPL, TSLA
 
-# TODO: on additions, get the last df date, make a request to see if it is valid then there are no splits or dividends
-# call the method: valid, Integrity: Valid (no splits or dividends since . . .)
-
-# TODO: schedule updates
+# TODO YFINANCE LIBRARY FREEDOM
