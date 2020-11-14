@@ -66,7 +66,6 @@ class Local:
         utils.cprint('> OK', Fore.MAGENTA)
 
 class Integrity:
-    def __init__(self, local, remote):
     def __init__(self, local, remote, confirm):
         self.local = local
         self.remote = remote
@@ -109,7 +108,7 @@ class Integrity:
         else:
             utils.cprint(f'> Missing Dates', Fore.MAGENTA)
             print(f'\n{missing_dates_df}')
-            return missing_dates_df
+            return missing_dates_df.index
 
     def additional_dates(self, df):
         utils.cprint(f'\n[ Integrity: Additional Dates ]', Fore.GREEN)
@@ -127,6 +126,9 @@ class Integrity:
             return pd.date_range(start=next, end=today)
 
     def insert(self, dates, df):
+        if dates is None:
+            return
+
         # request confirmation
         if self.confirm:
             if not utils.confirm(f'> Insert {dates.shape[0]:,} entries?'):
@@ -149,20 +151,26 @@ class Integrity:
         utils.cprint(f'> {insertions} Insertions', Fore.MAGENTA)
 
 class Remote:
-    def __init__(self, symbol, sandbox):
+    def __init__(self, symbol, sandbox, confirm):
         self.symbol = symbol        
-        self.iex = IEX(sandbox, confirm=True, verbose=True)
+        self.iex = IEX(sandbox, confirm=confirm, verbose=True)
+        self.adjusted = True # adjusted for splits not for dividends
+        self.key = 'close' if self.adjusted else 'uClose'
+
         utils.cprint(f'\n[ Remote: Init ]', Fore.GREEN)
         utils.cprint(f'> Symbol: {symbol}, Sandbox: {sandbox}', Fore.CYAN)
 
     def fetch_range(self, range):
-        utils.cprint(f'\n[ Remote: Fetch Historical Data - Range - Adjusted Close ]', Fore.GREEN)
+        close_string = 'Adjusted' if self.adjusted else 'Unadjusted'
+        utils.cprint(f'\n[ Remote: Fetch Historical Data - Date Range - {close_string} Close ]', Fore.GREEN)
 
         # iex request
-        data = self.iex.request_historical_range(self.symbol, range)
+        data = self.iex.request_historical_range(self.symbol, range, self.adjusted)
         if data is not None:
             df = pd.json_normalize(data)
-            df = df.drop(columns=['volume', 'change', 'changePercent', 'changeOverTime'])
+
+            df = df.drop(df.columns.difference(['date', self.key]), axis=1)
+
             df = df.set_index('date')
 
             if not df.empty:
@@ -170,18 +178,21 @@ class Remote:
                 return df
 
     def fetch_date(self, date):
-        utils.cprint(f'\n[ Remote: Fetch Historical Data - Day - Adjusted Close ]', Fore.GREEN)
+        close_string = 'Adjusted' if self.adjusted else 'Unadjusted'
+        utils.cprint(f'\n[ Remote: Fetch Historical Data - Single Date - {close_string} Close ]', Fore.GREEN)
         
+        date = date.strftime('%Y%m%d')
+
         # iex request
-        data = self.iex.request_historical_date(self.symbol, date.strftime('%Y%m%d'))
-        if data is not None:        
+        data = self.iex.request_historical_date(self.symbol, date)
+        if data is not None:
             df = pd.json_normalize(data)
 
             if df.empty:
-                utils.cprint(f'> Date {date_str}', Fore.CYAN)
+                utils.cprint(f'> Date {date}', Fore.CYAN)
                 utils.cprint(f'> None', Fore.MAGENTA)
             else:
-                close = df.loc[0]['close']
+                close = df.loc[0][self.key]
                 utils.cprint(f'> Close: {close}', Fore.MAGENTA)
                 return close
 
@@ -208,20 +219,13 @@ def run():
         integrity = Integrity(local, remote, args.confirm)
 
         missing = integrity.missing_dates(df)
-        if missing is not None:
-            # request confirmation
-            confirm = utils.confirm(f'> Insert {missing.shape[0]:,} missing entries?')
-            if not confirm:
-                return
-            # add missing dates
-            integrity.insert(missing.index, df)
+        integrity.insert(missing, df)
 
-        # TODO: update prices after last date in df
-        # additional_dates
+        additional = integrity.additional_dates(df)
+        integrity.insert(additional, df)
 
     print('')
 
-run()
 
 # TODO set max to 5y do not pay for anything
 
