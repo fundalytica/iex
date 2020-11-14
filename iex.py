@@ -31,8 +31,8 @@ class IEX:
         data['iexcloud-messages-used'] = response.headers['iexcloud-messages-used']
         return data
 
-    def request_historical_range(self, symbol, range):
-        weight = 2 # unadjusted (chartByDay)
+    def request_historical_range(self, symbol, range, adjusted=False):
+        weight = 2 if adjusted else 10
 
         # check range validity
         if(range not in self.valid_ranges()):
@@ -47,17 +47,19 @@ class IEX:
             if not utils.confirm('> Proceed with IEX request?'):
                 return
 
-        # access to Historical Prices from more than 5 years ago is only included with paid subscriptions
-        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/chart/{range}?token={self.token}&chartCloseOnly=true'
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/chart/{range}?token={self.token}'
+        if adjusted:
+            url += '&chartCloseOnly=true'
         self.message(f'> {url}', Fore.CYAN)
 
         return self.handle_historical_result(requests.get(url), weight)
 
     def request_historical_date(self, symbol, date):
-        weight = 2 # unadjusted (chartByDay)
+        weight = 2 # weight is 2 not 10
 
         self.message(f'> Date {date}, Weight {weight}, Message Cost {weight}', Fore.CYAN)
 
+        # both adjusted and unadjusted close prices, no need to use chartCloseOnly
         url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/chart/date/{date}?token={self.token}&chartByDay=true'
         self.message(f'> {url}', Fore.CYAN)
 
@@ -79,12 +81,12 @@ class IEX:
     def valid_ranges(self):
         return ['max','5y','2y','1y','6m','3m','1m','5d']
 
-    def trading_days_in_range(self, range):
+    def trading_days_in_range(self, range, paid=False):
         annual_holidays = 9
         annual_trading_days = 52 * 5 - annual_holidays
 
         days = {
-            'max':  annual_trading_days * 15,
+            'max':  annual_trading_days * (15 if paid else 5), # access to prices from more than 5 years ago is only included with paid subscriptions
             '5y':   annual_trading_days * 5,
             '2y':   annual_trading_days * 2,
             '1y':   annual_trading_days,
