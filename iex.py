@@ -2,41 +2,99 @@ import yaml
 import requests
 import json
 
-def iex_token(sandbox=False):
-    with open('/secret/iex.yml', 'r') as file:
-        config = yaml.load(file, yaml.Loader)
-        return config['token']['sandbox' if sandbox else 'live']
+from colorama import Fore
 
-def iex_quote(symbol, sandbox=False):
-    token = iex_token(sandbox)
+from utils import utils
 
-    subdomain = 'sandbox' if sandbox else 'cloud'
-    url = f'https://{subdomain}.iexapis.com/v1/stock/{symbol}/quote?token={token}'
+class IEX:
+    def __init__(self, sandbox=True, confirm=False, verbose=False):
+        self.sandbox = sandbox
+        self.confirm = confirm
+        self.verbose = verbose
 
-    response = requests.get(url)
-    if(response.status_code != requests.codes.ok):
-        return { "code": response.status_code }
+        self.token = self.get_token(sandbox)
+        self.subdomain = 'sandbox' if sandbox else 'cloud'
 
-    data = json.loads(response.text)
-    data['iexcloud-messages-used'] = response.headers['iexcloud-messages-used']
-    return data
+    def get_token(self, sandbox):
+        with open('/secret/iex.yml', 'r') as file:
+            config = yaml.load(file, yaml.Loader)
+            return config['token']['sandbox' if sandbox else 'live']
 
-def iex_ranges():
-    return ['max','5y','2y','1y','6m','3m','1m','5d']
+    def request_quote(self, symbol):
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/quote?token={self.token}'
 
-def iex_trading_days(iex_range):
-    annual_holidays = 9
-    annual_trading_days = 52 * 5 - annual_holidays
+        response = requests.get(url)
+        if(response.status_code != requests.codes.ok):
+            return { "code": response.status_code }
 
-    days = {
-        'max':  annual_trading_days * 15,
-        '5y':   annual_trading_days * 5,
-        '2y':   annual_trading_days * 2,
-        '1y':   annual_trading_days,
-        '6m':   annual_trading_days / 2,
-        '3m':   annual_trading_days / 4,
-        '1m':   annual_trading_days / 12,
-        '5d':   5
-    }
+        data = json.loads(response.text)
+        data['iexcloud-messages-used'] = response.headers['iexcloud-messages-used']
+        return data
 
-    return days[iex_range]
+    def request_historical_range(self, symbol, range):
+        weight = 2 # unadjusted (chartByDay)
+
+        # check range validity
+        if(range not in self.valid_ranges()):
+            self.message(f'Invalid Range, {range}', Fore.RED)
+            return
+
+        days = self.trading_days_in_range(range)
+        self.message(f'> Range {range}, Days {days:,}, Weight {weight}, Message Cost ~{(days * weight):,}', Fore.CYAN)
+
+        # request confirmation
+        if self.confirm:
+            if not utils.confirm('> Proceed with IEX request?'):
+                return
+
+        # access to Historical Prices from more than 5 years ago is only included with paid subscriptions
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/chart/{range}?token={self.token}&chartCloseOnly=true'
+        self.message(f'> {url}', Fore.CYAN)
+
+        return self.handle_historical_result(requests.get(url), weight)
+
+    def request_historical_date(self, symbol, date):
+        weight = 2 # unadjusted (chartByDay)
+
+        self.message(f'> Date {date}, Weight {weight}, Message Cost {weight}', Fore.CYAN)
+
+        url = f'https://{self.subdomain}.iexapis.com/v1/stock/{symbol}/chart/date/{date}?token={self.token}&chartByDay=true'
+        self.message(f'> {url}', Fore.CYAN)
+
+        return self.handle_historical_result(requests.get(url), weight)
+
+    def handle_historical_result(self, response, weight):
+        # show if error
+        if(response.status_code != requests.codes.ok):
+            self.message(response.status_code, Fore.RED)
+            self.message(response.text, Fore.RED)
+            return
+
+        # show message cost
+        messages = int(response.headers["iexcloud-messages-used"])
+        self.message(f'> Messages Used {messages:,}, Days {int(messages/weight):,}', Fore.MAGENTA)
+
+        return json.loads(response.text)
+
+    def valid_ranges(self):
+        return ['max','5y','2y','1y','6m','3m','1m','5d']
+
+    def trading_days_in_range(self, range):
+        annual_holidays = 9
+        annual_trading_days = 52 * 5 - annual_holidays
+
+        days = {
+            'max':  annual_trading_days * 15,
+            '5y':   annual_trading_days * 5,
+            '2y':   annual_trading_days * 2,
+            '1y':   annual_trading_days,
+            '6m':   annual_trading_days / 2,
+            '3m':   annual_trading_days / 4,
+            '1m':   annual_trading_days / 12,
+            '5d':   5
+        }
+        return days[range]
+
+    def message(self, text, color):
+        if self.verbose:
+            utils.cprint(text, color)
