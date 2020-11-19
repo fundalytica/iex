@@ -237,11 +237,41 @@ try:
 except KeyboardInterrupt:
     print('\n')
 
-# TODO YOU NEED TO GET THE DIVIDENDS (Basic), 5Y
-# TODO YOU NEED TO GET THE SPLITS (Basic), 5Y
+# adjusted is adjusted only for splits
 
-# TODO COMPARE TO YAHOO
+# adjusted historical range costs 2 messages per trading day
+# adjusted & unadjusted historical range costs 10 messages per trading day
+# max range is up to 15 years for paid plans and 5 years on the free plan
 
-# TODO CRONTAB SCHEDULE SPY, QQQ, AAPL, TSLA
+# historical date is always adjusted & unadjusted
+# historical date costs 2 messages (not 10)
 
-# TODO YFINANCE LIBRARY FREEDOM
+# a new split will invalidate previously saved adjusted prices
+
+# dividends (basic) request will return 5 years
+# splits (basic) request will return 5 years
+
+# action:
+# get individual membership
+# get 15Y unadjusted prices
+# schedule update daily
+# get 15Y dividends
+# schedule update daily
+# get 15Y splits
+# schedule update daily
+# create dataset that calculates adjusted close using dividends and splits
+# 15Y might not be possible, more like 12-13 years
+
+# you have 50,000 messages per month on the free plan
+# you have 5,000,000 messages per month on the paid plan for $9 a month (annual billing)
+# you can add 1,000,000 messages for $1
+# https://iexcloud.io/pricing/
+
+# costs 253 trading days * 5 * 10 = 12,650 to get prices for one symbol for 5Y
+# costs 253 trading days * 5 * 10 = 37,950 to get prices for one symbol for 15Y
+
+# attribution is required "Data provided by IEX Cloud"
+# No user may provide IEX Cloud data via their own API to users
+
+# due to the complexity start with yahoo finance
+# if yahoo stops working IEX can continue from that point onwards
