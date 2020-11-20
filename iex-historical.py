@@ -1,9 +1,6 @@
 import sys
 import argparse
 
-import os
-import pathlib
-
 import requests
 import json
 
@@ -12,58 +9,21 @@ import pandas as pd
 
 from colorama import Fore
 
-from utils import utils, stock
+from utils import utils, data, stock
 
 from iex import IEX
 
 class Local:
     def __init__(self, symbol, sandbox, csv=True):
+        path = utils.file_path(__file__)
+        name = utils.file_name(__file__)
+
         self.csv = csv
-
-        file_path = pathlib.Path(__file__).parent.absolute()
-        file_name = os.path.splitext(__file__)[0]
-
-        self.path = f"{file_path}/{file_name}/{'sandbox' if sandbox else 'cloud'}/"
-        self.path += symbol
-        self.path = f'{self.path}.{"csv" if csv else "pkl"}'
+        extension = f'.{"csv" if csv else "pkl"}'
+        self.file = f"{path}/{name}/{'sandbox' if sandbox else 'cloud'}/{symbol}{extension}"
 
         utils.cprint(f'\n[ Local: Init ]', Fore.GREEN)
-        utils.cprint(f'> Symbol: {symbol}, Path: {self.path}', Fore.CYAN)
-
-    def read(self):
-        utils.cprint('\n[ Local: Read Historical Data ]', Fore.GREEN)
-
-        try:
-            if(self.csv):
-                df = pd.read_csv(self.path, index_col='date')
-            else:
-                df = pd.read_pickle(self.path)
-
-            # sort on load
-            df.sort_index(inplace=True)
-
-            print(f'\n{df}')
-        except IOError as e:
-            utils.cprint('> File Not Found', Fore.RED)
-            return None
-        except pd.errors.EmptyDataError as e:
-            utils.cprint('> Empty Data', Fore.RED)
-            return None
-
-        return df
-
-    def write(self, df):
-        utils.cprint('\n[ Local: Write Historical Data ]', Fore.GREEN)
-
-        # sort on save
-        df.sort_index(inplace=True)
-
-        if(self.csv):
-            df.to_csv(self.path)
-        else:
-            df.to_pickle(self.path)
-        
-        utils.cprint('> OK', Fore.MAGENTA)
+        utils.cprint(f'> Symbol: {symbol}, File: {self.file}', Fore.CYAN)
 
 class Integrity:
     def __init__(self, local, remote, confirm):
@@ -145,14 +105,14 @@ class Integrity:
                 utils.cprint(f'\n[ Integrity: Insertion ]', Fore.GREEN)
                 utils.cprint(f'> {index} {close}', Fore.MAGENTA)
                 # save on every date because of messages used
-                self.local.write(df)
+                data.df_write(df, self.local.file, sort=True, verbose=True)
 
         utils.cprint(f'\n[ Integrity: Insert Complete ]', Fore.GREEN)
         utils.cprint(f'> {insertions} Insertions', Fore.MAGENTA)
 
 class Remote:
     def __init__(self, symbol, sandbox, confirm):
-        self.symbol = symbol        
+        self.symbol = symbol
         self.iex = IEX(sandbox, confirm=confirm, verbose=True)
         self.adjusted = True # adjusted for splits not for dividends
         self.key = 'close' if self.adjusted else 'uClose'
@@ -180,7 +140,7 @@ class Remote:
     def fetch_date(self, date):
         close_string = 'Adjusted' if self.adjusted else 'Unadjusted'
         utils.cprint(f'\n[ Remote: Fetch Historical Data - Single Date - {close_string} Close ]', Fore.GREEN)
-        
+
         date = date.strftime('%Y%m%d')
 
         # iex request
@@ -210,11 +170,11 @@ def run():
     local = Local(args.symbol, args.sandbox)
     remote = Remote(args.symbol, args.sandbox, args.confirm)
 
-    df = local.read()
+    df = data.df_read(local.file, sort=True, verbose=True)
     if df is None:
         df = remote.fetch_range('max')
         if df is not None:
-            local.write(df)
+            data.df_write(df, local.file, sort=True, verbose=True)
     else:
         integrity = Integrity(local, remote, args.confirm)
 
