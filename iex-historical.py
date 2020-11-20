@@ -59,8 +59,6 @@ class Integrity:
         cal = stock.USTradingCalendar().holidays(start, end)
         # remove holidays
         missing_dates_df = missing_dates_df.loc[~missing_dates_df.index.isin(cal)]
-        # remove non trading days
-        missing_dates_df = missing_dates_df.loc[~missing_dates_df.index.isin(stock.USOtherNonTradingDates())]
 
         if(missing_dates_df.empty):
             utils.cprint(f'> No Missing Dates', Fore.MAGENTA)
