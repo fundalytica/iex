@@ -65,6 +65,6 @@ def run():
     response["change"] = iex_response["changePercent"]
     response["market"] = "open" if isUSMarketOpen else "closed"
     response["messages"] = int(iex_response["iexcloud-messages-used"])
-    print(response)
+    print(json.dumps(response))
 
 run()
